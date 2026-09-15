@@ -7,9 +7,11 @@ import {
   getRecordHistory,
   apiErrorMessage,
 } from "../api";
+import { useToast } from "./Toast";
 import StatusBadge from "./StatusBadge";
 
 export default function EmailCard({ record, checked, onToggleCheck, onChanged, onDeleted }) {
+  const showToast = useToast();
   const [mode, setMode] = useState("view");
   const [subject, setSubject] = useState(record.subject ?? "");
   const [body, setBody] = useState(record.body ?? "");
@@ -28,8 +30,10 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
       await updateRecord(record.id, { subject, body, recipientEmail: recipient });
       setMode("view");
       onChanged();
+      showToast("Email updated");
     } catch (err) {
       setError(apiErrorMessage(err));
+      showToast(apiErrorMessage(err), "error");
     } finally {
       setBusy(false);
     }
@@ -43,8 +47,10 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
       setMode("view");
       setInstruction("");
       onChanged();
+      showToast("Email regenerated");
     } catch (err) {
       setError(apiErrorMessage(err));
+      showToast(apiErrorMessage(err), "error");
     } finally {
       setBusy(false);
     }
@@ -55,10 +61,16 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
     setError(null);
     try {
       const result = await sendSingleRecord(record.id);
-      if (result.status === "failed") setError(result.error || "Send failed");
+      if (result.status === "failed") {
+        setError(result.error || "Send failed");
+        showToast(result.error || "Send failed", "error");
+      } else {
+        showToast(`Sent to ${record.recipientEmail}`);
+      }
       onChanged();
     } catch (err) {
       setError(apiErrorMessage(err));
+      showToast(apiErrorMessage(err), "error");
     } finally {
       setBusy(false);
     }
@@ -70,8 +82,11 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
     try {
       await deleteRecord(record.id);
       onDeleted();
+      showToast("Record deleted");
     } catch (err) {
       setError(apiErrorMessage(err));
+      showToast(apiErrorMessage(err), "error");
+    } finally {
       setBusy(false);
     }
   }
@@ -88,7 +103,10 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
     }
   }
 
-  const canSend = !!(record.subject && record.body && record.recipientEmail) && record.status !== "sending";
+  const canSend =
+    !!(record.subject && record.body && record.recipientEmail) &&
+    record.status !== "sending" &&
+    record.status !== "sent";
 
   return (
     <div className="email-card">
@@ -184,7 +202,7 @@ export default function EmailCard({ record, checked, onToggleCheck, onChanged, o
         </div>
       )}
 
-      {error && mode !== "view" && <div className="error-banner mt-8">{error}</div>}
+      {error && <div className="error-banner mt-8">{error}</div>}
     </div>
   );
 }

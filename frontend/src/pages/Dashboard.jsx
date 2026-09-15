@@ -26,6 +26,7 @@ export default function Dashboard() {
     try {
       const data = await listBatches();
       setBatches(data);
+      setError(null);
     } catch (err) {
       setError(apiErrorMessage(err));
     }

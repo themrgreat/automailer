@@ -12,14 +12,14 @@ async function parseSpreadsheet(buffer, filename) {
 
 function parseCsvBuffer(buffer) {
   const records = parseCsv(buffer, {
-    columns: true,
+    columns: (headerRow) => dedupeHeaders(headerRow.map((h) => h.trim())),
     skip_empty_lines: true,
     trim: true,
     bom: true,
   });
 
   const columnSet = new Set();
-  for (const row of records) for (const key of Object.keys(row)) columnSet.add(key.trim());
+  for (const row of records) for (const key of Object.keys(row)) columnSet.add(key);
   const columns = Array.from(columnSet);
 
   const rows = records.map((row) => {
@@ -31,15 +31,34 @@ function parseCsvBuffer(buffer) {
   return { columns, rows };
 }
 
+// Duplicate header names (e.g. two "Email" columns) would otherwise silently
+// overwrite each other when read into a plain object — disambiguate them.
+function dedupeHeaders(headers) {
+  const seen = new Map();
+  return headers.map((h) => {
+    const count = seen.get(h) ?? 0;
+    seen.set(h, count + 1);
+    return count === 0 ? h : `${h} (${count + 1})`;
+  });
+}
+
 async function parseExcelBuffer(buffer) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
   const worksheet = workbook.worksheets[0];
   if (!worksheet) return { columns: [], rows: [] };
 
-  const headers = [];
+  const rawHeaders = [];
   worksheet.getRow(1).eachCell({ includeEmpty: false }, (cell, colNumber) => {
-    headers[colNumber] = String(cell.value ?? "").trim();
+    rawHeaders[colNumber] = String(cell.value ?? "").trim();
+  });
+
+  const seen = new Map();
+  const headers = rawHeaders.map((h) => {
+    if (!h) return h;
+    const count = seen.get(h) ?? 0;
+    seen.set(h, count + 1);
+    return count === 0 ? h : `${h} (${count + 1})`;
   });
 
   const columnSet = new Set();

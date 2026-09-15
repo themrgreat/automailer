@@ -67,6 +67,7 @@ export default function ImportPage() {
           style={{ display: "none" }}
           onChange={(e) => {
             const file = e.target.files?.[0];
+            e.target.value = ""; // allow re-selecting the same file after a failed upload
             if (file) handleFile(file);
           }}
         />

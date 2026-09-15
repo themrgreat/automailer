@@ -16,6 +16,7 @@ function fillTemplateVars(text, data) {
 async function resolveTemplate(body) {
   const db = getDb();
   if (body.templateId) {
+    if (typeof body.templateId !== "string") throw new Error("templateId must be a string");
     const t = await db.collection("templates").findOne({ id: body.templateId });
     if (!t) throw new Error("Template not found");
     return {
@@ -46,16 +47,17 @@ async function resolveTemplate(body) {
 
 async function generateForRecord(recordId, template) {
   const db = getDb();
-  const record = await db.collection("records").findOne({ id: recordId });
-  if (!record) return;
-  const data = record.data;
-
-  await db.collection("records").updateOne(
-    { id: recordId },
-    { $set: { status: "generating", error: null, updatedAt: new Date().toISOString() } }
-  );
 
   try {
+    const record = await db.collection("records").findOne({ id: recordId });
+    if (!record) return;
+    const data = record.data;
+
+    await db.collection("records").updateOne(
+      { id: recordId },
+      { $set: { status: "generating", error: null, updatedAt: new Date().toISOString() } }
+    );
+
     const result = await generateEmail({
       templateName: template.name,
       subjectTemplate: fillTemplateVars(template.subject, data),
@@ -102,7 +104,7 @@ generateRouter.post(
   asyncHandler(async (req, res) => {
     const db = getDb();
     const { batchId, recordIds } = req.body;
-    if (!batchId) return res.status(400).json({ error: "batchId is required" });
+    if (typeof batchId !== "string" || !batchId) return res.status(400).json({ error: "batchId is required" });
 
     let template;
     try {
@@ -115,7 +117,7 @@ generateRouter.post(
     if (recordIds === "all") {
       const rows = await db.collection("records").find({ batchId }).project({ id: 1 }).toArray();
       targetIds = rows.map((r) => r.id);
-    } else if (Array.isArray(recordIds) && recordIds.length > 0) {
+    } else if (Array.isArray(recordIds) && recordIds.length > 0 && recordIds.every((id) => typeof id === "string")) {
       targetIds = recordIds;
     } else {
       return res.status(400).json({ error: "recordIds must be 'all' or a non-empty array" });

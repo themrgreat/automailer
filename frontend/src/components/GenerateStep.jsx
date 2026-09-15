@@ -5,7 +5,7 @@ export default function GenerateStep({ records, targetIds, onContinue }) {
   const pending = targeted.filter((r) => r.status === "draft" || r.status === "generating").length;
   const done = targeted.length - pending;
   const failed = targeted.filter((r) => r.status === "failed").length;
-  const succeeded = targeted.filter((r) => r.status === "ai_generated").length;
+  const succeeded = done - failed;
   const pct = Math.round((done / total) * 100);
   const complete = pending === 0;
 

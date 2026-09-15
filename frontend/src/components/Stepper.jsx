@@ -13,7 +13,7 @@ export default function Stepper({ current, furthest, onJump }) {
     <div className="stepper">
       {STEPS.map((s, idx) => {
         const isActive = s.id === current;
-        const isDone = idx < furthestIdx || (idx <= furthestIdx && !isActive);
+        const isDone = idx < furthestIdx;
         const clickable = idx <= furthestIdx;
         return (
           <div

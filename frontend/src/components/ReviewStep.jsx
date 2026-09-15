@@ -52,12 +52,17 @@ export default function ReviewStep({ batchId, records, targetIds, onChanged }) {
     });
   }
 
+  function isSendable(r) {
+    return r.status !== "sent" && r.status !== "sending";
+  }
+
   async function sendSelected() {
-    if (checked.size === 0) return setError("Select at least one email to send");
+    const sendable = targeted.filter((r) => checked.has(r.id) && isSendable(r));
+    if (sendable.length === 0) return setError("Select at least one email that hasn't already been sent");
     setBusy(true);
     setError(null);
     try {
-      await sendRecords({ recordIds: Array.from(checked) });
+      await sendRecords({ recordIds: sendable.map((r) => r.id) });
       setChecked(new Set());
       onChanged();
     } catch (err) {
@@ -68,15 +73,14 @@ export default function ReviewStep({ batchId, records, targetIds, onChanged }) {
   }
 
   async function sendAll() {
-    if (!confirm(`Send all ${targeted.length} emails now?`)) return;
+    const sendable = targeted.filter(isSendable);
+    if (sendable.length === 0) return setError("Everything in this batch has already been sent");
+    if (!confirm(`Send ${sendable.length} email(s) now?`)) return;
     setBusy(true);
     setError(null);
     try {
-      if (targetIds && targetIds.length > 0) {
-        await sendRecords({ batchId, recordIds: targeted.map((r) => r.id) });
-      } else {
-        await sendRecords({ batchId, recordIds: "all" });
-      }
+      await sendRecords({ batchId, recordIds: sendable.map((r) => r.id) });
+      setChecked(new Set());
       onChanged();
     } catch (err) {
       setError(apiErrorMessage(err));

@@ -11,32 +11,33 @@ const CONCURRENCY = 2;
 
 async function sendForRecord(recordId) {
   const db = getDb();
-  const record = await db.collection("records").findOne({ id: recordId });
-  if (!record) return;
-
-  if (!record.recipientEmail) {
-    await db.collection("records").updateOne(
-      { id: recordId },
-      { $set: { status: "failed", error: "No recipient email address", updatedAt: new Date().toISOString() } }
-    );
-    await addHistory(recordId, "send_failed", "No recipient email address");
-    return;
-  }
-  if (!record.subject || !record.body) {
-    await db.collection("records").updateOne(
-      { id: recordId },
-      { $set: { status: "failed", error: "Email has no generated content", updatedAt: new Date().toISOString() } }
-    );
-    await addHistory(recordId, "send_failed", "Email has no generated content");
-    return;
-  }
-
-  await db.collection("records").updateOne(
-    { id: recordId },
-    { $set: { status: "sending", error: null, updatedAt: new Date().toISOString() } }
-  );
 
   try {
+    const record = await db.collection("records").findOne({ id: recordId });
+    if (!record) return;
+
+    if (!record.recipientEmail) {
+      await db.collection("records").updateOne(
+        { id: recordId },
+        { $set: { status: "failed", error: "No recipient email address", updatedAt: new Date().toISOString() } }
+      );
+      await addHistory(recordId, "send_failed", "No recipient email address");
+      return;
+    }
+    if (!record.subject || !record.body) {
+      await db.collection("records").updateOne(
+        { id: recordId },
+        { $set: { status: "failed", error: "Email has no generated content", updatedAt: new Date().toISOString() } }
+      );
+      await addHistory(recordId, "send_failed", "Email has no generated content");
+      return;
+    }
+
+    await db.collection("records").updateOne(
+      { id: recordId },
+      { $set: { status: "sending", error: null, updatedAt: new Date().toISOString() } }
+    );
+
     await sendEmail({ to: record.recipientEmail, subject: record.subject, body: record.body });
     await db.collection("records").updateOne(
       { id: recordId },
@@ -61,10 +62,12 @@ sendRouter.post(
 
     let targetIds;
     if (recordIds === "all") {
-      if (!batchId) return res.status(400).json({ error: "batchId is required when recordIds is 'all'" });
+      if (typeof batchId !== "string" || !batchId) {
+        return res.status(400).json({ error: "batchId is required when recordIds is 'all'" });
+      }
       const rows = await db.collection("records").find({ batchId }).project({ id: 1 }).toArray();
       targetIds = rows.map((r) => r.id);
-    } else if (Array.isArray(recordIds) && recordIds.length > 0) {
+    } else if (Array.isArray(recordIds) && recordIds.length > 0 && recordIds.every((id) => typeof id === "string")) {
       targetIds = recordIds;
     } else {
       return res.status(400).json({ error: "recordIds must be 'all' or a non-empty array" });

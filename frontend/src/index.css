@@ -610,6 +610,7 @@ a {
 input[type="text"],
 input[type="email"],
 input[type="number"],
+input[type="password"],
 textarea,
 select {
   background: var(--bg);
@@ -618,6 +619,11 @@ select {
   padding: 8px 10px;
   width: 100%;
   outline: none;
+}
+
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
 }
 
 input:focus,
@@ -636,6 +642,35 @@ label.field-label {
 
 .field {
   margin-bottom: 14px;
+}
+
+.field-input-wrap {
+  position: relative;
+  flex: 1;
+}
+
+.field-input-wrap input {
+  padding-right: 34px;
+}
+
+.field-toggle-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  border-radius: 6px;
+}
+
+.field-toggle-btn:hover {
+  color: var(--text);
 }
 
 .stepper {

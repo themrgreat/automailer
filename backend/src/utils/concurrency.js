@@ -3,7 +3,11 @@ async function runWithConcurrency(items, limit, worker) {
   async function next() {
     const i = index++;
     if (i >= items.length) return;
-    await worker(items[i]);
+    try {
+      await worker(items[i]);
+    } catch (err) {
+      console.error("runWithConcurrency worker error:", err);
+    }
     return next();
   }
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, () => next()));

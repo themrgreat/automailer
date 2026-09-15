@@ -78,12 +78,12 @@ recordsRouter.post(
       return res.status(400).json({ error: "This record has no prior generation to base a re-prompt on. Generate it first." });
     }
 
-    await db.collection("records").updateOne(
-      { id: req.params.id },
-      { $set: { status: "generating", error: null, updatedAt: new Date().toISOString() } }
-    );
-
     try {
+      await db.collection("records").updateOne(
+        { id: req.params.id },
+        { $set: { status: "generating", error: null, updatedAt: new Date().toISOString() } }
+      );
+
       const result = await generateEmail({
         templateName: template.name,
         subjectTemplate: template.subject,

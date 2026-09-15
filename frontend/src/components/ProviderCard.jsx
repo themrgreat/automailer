@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { CheckCircle2, XCircle, ExternalLink, Star, Trash2, Loader2 } from "lucide-react";
+import { CheckCircle2, XCircle, ExternalLink, Star, Trash2, Loader2, Eye, EyeOff } from "lucide-react";
 import { apiErrorMessage } from "../api";
 import { useToast } from "./Toast";
 
@@ -22,7 +22,12 @@ export default function ProviderCard({ provider, actions, onChanged }) {
   const [customModel, setCustomModel] = useState(hasModels && !provider.models.includes(provider.model));
   const [busy, setBusy] = useState(null);
   const [testResult, setTestResult] = useState(null);
+  const [visibleFields, setVisibleFields] = useState({});
   const showToast = useToast();
+
+  function toggleVisible(key) {
+    setVisibleFields((prev) => ({ ...prev, [key]: !prev[key] }));
+  }
 
   const enteredFields = Object.fromEntries(Object.entries(fieldInputs).filter(([, v]) => v.trim()));
   const hasEnteredInput = Object.keys(enteredFields).length > 0;
@@ -123,13 +128,26 @@ export default function ProviderCard({ provider, actions, onChanged }) {
             {field.required === false ? " (optional)" : ""}
           </label>
           <div className="btn-row" style={{ alignItems: "stretch" }}>
-            <input
-              type={field.type === "password" ? "password" : "text"}
-              value={fieldInputs[field.key]}
-              onChange={(e) => setField(field.key, e.target.value)}
-              placeholder={field.hasValue ? `${field.preview} (saved)` : `Not set — paste your ${field.label} to add one`}
-              autoComplete="off"
-            />
+            <div className="field-input-wrap">
+              <input
+                type={field.type === "password" && !visibleFields[field.key] ? "password" : "text"}
+                value={fieldInputs[field.key]}
+                onChange={(e) => setField(field.key, e.target.value)}
+                placeholder={field.hasValue ? `${field.preview} (saved)` : `Not set — paste your ${field.label} to add one`}
+                autoComplete="off"
+              />
+              {field.type === "password" && (
+                <button
+                  type="button"
+                  className="field-toggle-btn"
+                  onClick={() => toggleVisible(field.key)}
+                  tabIndex={-1}
+                  aria-label={visibleFields[field.key] ? `Hide ${field.label}` : `Show ${field.label}`}
+                >
+                  {visibleFields[field.key] ? <EyeOff size={15} /> : <Eye size={15} />}
+                </button>
+              )}
+            </div>
           </div>
           {field.source === "env" && (
             <div className="text-sm muted mt-8">Currently using the value from your backend .env file.</div>

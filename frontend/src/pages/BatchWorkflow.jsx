@@ -20,13 +20,19 @@ export default function BatchWorkflow() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const refreshSeq = useRef(0);
+
   const refresh = useCallback(async () => {
     if (!batchId) return;
+    const seq = ++refreshSeq.current;
     try {
       const data = await getBatch(batchId);
+      if (seq !== refreshSeq.current) return; // a newer refresh already landed, ignore this stale one
       setBatch(data.batch);
       setRecords(data.records);
+      setError(null);
     } catch (err) {
+      if (seq !== refreshSeq.current) return;
       setError(apiErrorMessage(err));
     }
   }, [batchId]);
@@ -51,15 +57,16 @@ export default function BatchWorkflow() {
     loadInitial();
   }, [batchId]);
 
-  const recordsRef = useRef(records);
-  recordsRef.current = records;
-
   useEffect(() => {
-    const inFlight = records.some((r) => r.status === "generating" || r.status === "sending");
-    if (!inFlight) return;
+    // Scope to targetIds while on the generate step so untouched (still-"draft") records
+    // elsewhere in the batch don't count as "in flight" and poll forever.
+    const scoped = step === "generate" && targetIds.length > 0 ? records.filter((r) => targetIds.includes(r.id)) : records;
+    const isGenerating = step === "generate" && scoped.some((r) => r.status === "draft" || r.status === "generating");
+    const isSending = records.some((r) => r.status === "sending");
+    if (!isGenerating && !isSending) return;
     const id = setInterval(refresh, 1200);
     return () => clearInterval(id);
-  }, [records, refresh]);
+  }, [step, targetIds, records, refresh]);
 
   function goTo(target) {
     const idx = STEP_ORDER.indexOf(target);
