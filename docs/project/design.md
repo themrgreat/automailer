@@ -31,7 +31,9 @@
   absolutely positioned inside the input (`.field-input-wrap` / `.field-toggle-btn`).
 - **Navigation**: a persistent left sidebar with brand block, flat nav links (10px gap icon+label,
   9px/12px padding, `var(--radius-sm)` corners), an `.active` state using the dim-accent background,
-  and a footer line summarizing the workflow ("Import → Template → Generate → Review → Send").
+  and a footer line summarizing the workflow ("Import → Template → Generate → Review → Send"). A
+  fifth link, "Admin Panel" (`/settings/admin`, this session), was added alongside AI/Mail
+  Providers — no new nav styling, same `lucide-react` icon + `.sidebar-link` treatment.
 - **Borders**: `1px solid var(--border)` is the near-universal border treatment across cards,
   inputs, tables, tabs, badges' containers, etc. — no double borders, no border on hover except a
   color swap to `var(--accent)`/`var(--danger)` on interactive elements.

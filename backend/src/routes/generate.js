@@ -4,10 +4,9 @@ const { generateEmail } = require("../services/ai");
 const { addHistory } = require("../services/history");
 const { runWithConcurrency } = require("../utils/concurrency");
 const { asyncHandler } = require("../utils/asyncHandler");
+const { getSettings } = require("../services/adminSettings");
 
 const generateRouter = Router();
-
-const CONCURRENCY = 2;
 
 function fillTemplateVars(text, data) {
   return text.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_match, key) => data[key] ?? "");
@@ -125,9 +124,11 @@ generateRouter.post(
 
     res.json({ started: true, count: targetIds.length });
 
-    runWithConcurrency(targetIds, CONCURRENCY, (id) => generateForRecord(id, template)).catch((err) => {
-      console.error("Bulk generation error:", err);
-    });
+    getSettings()
+      .then((settings) => runWithConcurrency(targetIds, settings.aiGeneration.concurrency, (id) => generateForRecord(id, template)))
+      .catch((err) => {
+        console.error("Bulk generation error:", err);
+      });
   })
 );
 

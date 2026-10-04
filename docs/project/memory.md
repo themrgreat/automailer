@@ -5,38 +5,59 @@
 > generated under). Do not duplicate full content from `PRD.md`/`Architecture.md`/`design.md` here
 > — link to them instead.
 
-_Last updated: 2026-09-15 (backend security/reliability fixes + frontend bug-fix pass, this session)._
+_Last updated: 2026-09-16 (Admin Panel for dynamic AI/email limits, this session)._
 
 ## Project State
 
 **Overall status**: Functionally complete for its core single-operator workflow. Import → Template
 → Generate → Review → Send all work end-to-end, backed by 4 pluggable AI providers and 2 pluggable
-mail providers, with encrypted credential storage and a settings UI. No tests, no CI, no
-deployment tooling, and no authentication exist yet — see `PRD.md` § Known Gaps.
+mail providers, with encrypted credential storage and a settings UI. AI-generation and
+email-sending retry/concurrency/rate limits are now admin-configurable at runtime (Admin Panel,
+this session) instead of hardcoded. No tests, no CI, no deployment tooling, and no authentication
+exist yet — see `PRD.md` § Known Gaps.
 
-A full-repo bug audit was completed this session (prompted by a user-reported stuck Generate step
-that turned out to be a real race condition, not user error). 15 genuine bugs were found and fixed
-across backend and frontend — see Recent Changes. None were committed as of this update.
+A full-repo bug audit was completed in the previous session (prompted by a user-reported stuck
+Generate step that turned out to be a real race condition, not user error). 15 genuine bugs were
+found and fixed across backend and frontend — see Recent Changes. None were committed as of this
+update.
 
 - **Completed functionality**: see `phases.md` Phases 1–4 (import/parse/preview, templating + AI
-  generation, review/edit/send, provider settings UI).
+  generation, review/edit/send, provider settings UI) and Phase 6 (Admin Panel & dynamic
+  configuration, this session).
 - **Partially implemented**: Phase 5 — a provider-card UI refinement is in progress as uncommitted
-  local changes.
-- **Remaining work**: Phase 6 (hardening: tests, CI, deployment config, crash recovery for
+  local changes (unrelated to this session's work).
+- **Remaining work**: Phase 7 (hardening: tests, CI, deployment config, crash recovery for
   in-flight batches, and an explicit decision on whether auth/templates-management UI are in
   scope) — none of it started.
 
 ## Current Phase
 
-**Phase 5 — Provider Card UI Polish** (see `phases.md`). Status: In Progress.
+**Phase 6 — Admin Panel & Dynamic Configuration** (see `phases.md`). Status: Completed, uncommitted.
 
 ## Current Work
 
-Bug-fix pass across the whole repo, triggered by a user report of the Generate step appearing
-permanently stuck ("502"/frozen progress bar). Root cause investigation surfaced a real race
-condition (see Recent Changes #7 below), which led to a full backend + frontend audit (via two
-parallel review agents) rather than a single-issue patch. All findings were verified against the
-actual code before fixing — nothing below is speculative. Nothing from this pass is committed yet.
+Implemented an Admin Panel (`/settings/admin`) making previously-hardcoded AI-generation and
+email-sending limits dynamically configurable and MongoDB-persisted, per user request (the
+operator runs mostly free-tier AI/mail services, so provider limits change independently of the
+code). See `phases.md` Phase 6 for the full file list. Key design points:
+- Every new default exactly matches the app's prior hardcoded behavior (AI retry 2 / concurrency 2;
+  email concurrency 2, but email previously had **no** retry and **no** rate limit at all — both
+  new capabilities default to "off" so existing installs see zero behavior change until an admin
+  opts in).
+- Validation rejects non-integers and out-of-range values (retry 0–10, concurrency 1–20,
+  emails/minute 0–10000); a missing/corrupt stored field fails open to the default, mirroring
+  `decryptSafe()`'s existing convention — never crashes generation/sending.
+- A Reset-to-Defaults action (`DELETE /api/admin-settings`) was added after the user asked whether
+  anything else was missing — mirrors `clearProviderCredentials()`'s pattern, gives the operator a
+  quick way back to known-good values after experimenting with free-tier quota tuning.
+- Verified against the project's real MongoDB (not mocked): GET/PUT/DELETE round-trip, invalid
+  values rejected with clear 400 messages, values survive a full backend process restart, `npm run
+  lint` and `npm run build` both clean on the frontend. Could **not** visually screenshot the page
+  (no headless-browser tool in this environment) — the user confirmed it renders correctly via
+  their own screenshot.
+- Project docs (`Architecture.md`, `PRD.md`, `phases.md`, this file) updated to match, per explicit
+  user request — `MY_CODING_STYLE.md` intentionally left untouched (it's a personal-style
+  reference, not project-state documentation).
 
 Separately (not touched by this session): an uncommitted UI change to the provider settings card
 still exists — see Active Files below. Its exact intent was not stated anywhere in the repo (no
@@ -45,12 +66,15 @@ being extended or committed.
 
 ## Active Files
 
-- `frontend/src/components/ProviderCard.jsx` — 34 lines changed, uncommitted, purpose not recorded.
+- `frontend/src/components/ProviderCard.jsx` — 34 lines changed, uncommitted, purpose not recorded
+  (pre-existing, not from this session).
 - `frontend/src/index.css` — 35 lines added, uncommitted, likely styling to support the
-  `ProviderCard.jsx` change above.
+  `ProviderCard.jsx` change above (pre-existing, not from this session).
+- Admin Panel files (this session, uncommitted) — see `phases.md` Phase 6 "Relevant Files" for the
+  full list; none are in conflict with the `ProviderCard.jsx`/`index.css` changes above.
 
-(Run `git diff` against these two files for the exact current delta — this memory file will not be
-kept in sync with further edits to them automatically.)
+(Run `git diff` for the exact current delta — this memory file will not be kept in sync with
+further edits automatically.)
 
 ## Recent Changes
 
@@ -100,6 +124,23 @@ kept in sync with further edits to them automatically.)
   12. `GenerateStep.jsx` — success/failure tallies only recognized `ai_generated`/`failed`
       explicitly, so re-running Generate over records with other statuses (e.g. `sent`) could make
       the counts not sum to the total. Fixed to derive `succeeded` from `done - failed`.
+- **(This session, uncommitted) Admin Panel — dynamic AI/email limits:**
+  13. New `admin_settings` MongoDB collection + `services/adminSettings.js`
+      (`getSettings`/`updateSettings`/`resetSettings`, validated, fail-open to defaults) +
+      `routes/adminSettings.js` (`GET`/`PUT`/`DELETE /api/admin-settings`).
+  14. `routes/generate.js` / `routes/send.js` — hardcoded `CONCURRENCY = 2` replaced with a
+      per-request read of `aiGeneration.concurrency` / `emailSending.concurrency` from admin
+      settings.
+  15. `services/ai/index.js` — hardcoded `MAX_RETRIES = 2` replaced with `aiGeneration.retryLimit`.
+  16. `services/mailer/index.js` — added retry-with-backoff (`emailSending.retryLimit`, new
+      capability, default 0) and an emails-per-minute rate limit via new
+      `utils/rateLimiter.js` (`emailSending.emailsPerMinute`, new capability, default 0 =
+      unlimited). Neither existed before; both default off so behavior is unchanged until an admin
+      opts in.
+  17. `frontend/src/pages/AdminSettings.jsx` (new page, `/settings/admin`) — AI Generation and
+      Email Sending cards, Save + Reset-to-Defaults; `api.js` gained
+      `getAdminSettings`/`updateAdminSettings`/`resetAdminSettings`; nav link added to
+      `Sidebar.jsx`. No new CSS — reuses `.card`/`.field`/`.field-label`/`.btn`.
 
 ## Known Issues
 
@@ -131,17 +172,27 @@ does not yet reflect the fixes in Recent Changes above).
   DB-default-with-env-fallback credentials, fail-open decryption, polling over WebSockets, no auth)
   are recorded in `Architecture.md` § Architecture Decisions — treat them as intentional unless a
   future task explicitly revisits them.
+- **Admin Panel scope**: only AI-generation/email-sending retry, concurrency, and rate limits were
+  exposed — per-provider generation params (e.g. `temperature`/`max_tokens` in `ai/gemini.js` etc.)
+  were deliberately left hardcoded; they're model-behavior tuning, not usage/rate controls, and
+  `rules.md` explicitly warns against broadening AI provider behavior casually.
+- **`admin_settings` uses a fixed `id: "global"`, not `nanoid()`** — a deliberate exception to the
+  "every generated id uses `nanoid()`" convention in `rules.md`, because it's a true singleton
+  document (one, ever), not a repeated entity like `batches`/`records`/`templates`. Flagged
+  explicitly to the user as a judgment call rather than applied silently.
 
 ## Next Steps
 
 1. Decide whether to commit this session's backend security/reliability fixes and frontend bug
    fixes (all verified via lint + a successful `vite build`, none committed yet) — as one commit or
    split backend/frontend.
-2. Confirm the intent of the uncommitted `ProviderCard.jsx`/`index.css` changes with whoever
+2. Decide whether to commit the Admin Panel work (Phase 6, this session) — separately from the
+   bug-fix pass above, since they're unrelated changes.
+3. Confirm the intent of the uncommitted `ProviderCard.jsx`/`index.css` changes with whoever
    authored them; commit once verified (Phase 5).
-3. Decide, with the project owner, which Phase 6 hardening item to tackle first (tests, CI,
+4. Decide, with the project owner, which Phase 7 hardening item to tackle first (tests, CI,
    deployment, full crash recovery, or auth) — none has been started, so priority is an open
    question, not a technical one.
-4. If new functional work begins, update this file's Current Work/Active Files/Recent Changes
+5. If new functional work begins, update this file's Current Work/Active Files/Recent Changes
    sections at the end of that work, per the standing instruction under which this file was
    created.

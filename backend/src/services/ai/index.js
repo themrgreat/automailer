@@ -1,4 +1,5 @@
 const { getActiveProviderId, resolveProviderCredentials, PROVIDER_CLASSES } = require("./config");
+const { getSettings } = require("../adminSettings");
 
 // Undocumented but previously-supported alternate names for AI_PROVIDER.
 const PROVIDER_ALIASES = { chatgpt: "openai", anthropic: "claude" };
@@ -23,7 +24,6 @@ async function getProvider() {
 }
 
 const RETRYABLE_STATUSES = new Set([429, 503]);
-const MAX_RETRIES = 2;
 const DEFAULT_RETRY_DELAY_MS = 5000;
 
 function sleep(ms) {
@@ -31,9 +31,13 @@ function sleep(ms) {
 }
 
 // Rate limits (429) and "model overloaded" (503) are transient — retry with backoff
-// before giving up, using the provider's suggested delay when it gives us one.
+// before giving up, using the provider's suggested delay when it gives us one. The
+// retry count is admin-configurable (Admin Panel); defaults match the app's original
+// hardcoded MAX_RETRIES = 2.
 async function generateEmail(input) {
   const provider = await getProvider();
+  const settings = await getSettings();
+  const maxRetries = settings.aiGeneration.retryLimit;
 
   for (let attempt = 0; ; attempt++) {
     try {
@@ -43,7 +47,7 @@ async function generateEmail(input) {
       }
       return result;
     } catch (err) {
-      if (!RETRYABLE_STATUSES.has(err.status) || attempt === MAX_RETRIES) throw err;
+      if (!RETRYABLE_STATUSES.has(err.status) || attempt === maxRetries) throw err;
       await sleep(err.retryAfterMs ?? DEFAULT_RETRY_DELAY_MS * (attempt + 1));
     }
   }

@@ -4,10 +4,9 @@ const { sendEmail } = require("../services/mailer");
 const { addHistory } = require("../services/history");
 const { runWithConcurrency } = require("../utils/concurrency");
 const { asyncHandler } = require("../utils/asyncHandler");
+const { getSettings } = require("../services/adminSettings");
 
 const sendRouter = Router();
-
-const CONCURRENCY = 2;
 
 async function sendForRecord(recordId) {
   const db = getDb();
@@ -75,9 +74,11 @@ sendRouter.post(
 
     res.json({ started: true, count: targetIds.length });
 
-    runWithConcurrency(targetIds, CONCURRENCY, sendForRecord).catch((err) => {
-      console.error("Bulk send error:", err);
-    });
+    getSettings()
+      .then((settings) => runWithConcurrency(targetIds, settings.emailSending.concurrency, sendForRecord))
+      .catch((err) => {
+        console.error("Bulk send error:", err);
+      });
   })
 );
 

@@ -9,6 +9,7 @@ const { recordsRouter } = require("./routes/records");
 const { sendRouter } = require("./routes/send");
 const { aiProvidersRouter } = require("./routes/aiProviders");
 const { mailProvidersRouter } = require("./routes/mailProviders");
+const { adminSettingsRouter } = require("./routes/adminSettings");
 const { connectDB } = require("./db");
 
 async function main() {
@@ -28,6 +29,7 @@ async function main() {
   app.use("/api/send", sendRouter);
   app.use("/api/ai-providers", aiProvidersRouter);
   app.use("/api/mail-providers", mailProvidersRouter);
+  app.use("/api/admin-settings", adminSettingsRouter);
 
   app.use((err, _req, res, _next) => {
     console.error(err);

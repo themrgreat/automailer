@@ -41,7 +41,9 @@
   (`routes/generate.js`) — the regex is `\{\{\s*([^}]+?)\s*\}\}`.
 - **IDs**: `nanoid()` for every generated id (batches, records, templates, history entries) — do not
   switch to Mongo `ObjectId` or UUIDs for new documents; the whole app queries by the `id` string
-  field, not `_id`.
+  field, not `_id`. Exception: a true singleton document (one per app, ever — e.g. `admin_settings`)
+  uses a fixed, well-known string id instead (`"global"`) rather than `nanoid()`, since there's
+  nothing to generate — it isn't a repeated entity like the collections above.
 - **Timestamps**: `new Date().toISOString()` string fields (`createdAt`/`updatedAt`), not native
   `Date` objects or Unix epoch numbers.
 - **Data-access pattern**: inline queries per route handler, matching the existing style; introduce

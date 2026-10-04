@@ -1,11 +1,12 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, UploadCloud, BrainCircuit, Send, Mail, X } from "lucide-react";
+import { LayoutDashboard, UploadCloud, BrainCircuit, Send, Mail, Settings, X } from "lucide-react";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
   { to: "/import", label: "New Import", icon: UploadCloud },
   { to: "/settings/ai-providers", label: "AI Providers", icon: BrainCircuit },
   { to: "/settings/mail-providers", label: "Mail Providers", icon: Send },
+  { to: "/settings/admin", label: "Admin Panel", icon: Settings },
 ];
 
 export default function Sidebar({ open, onClose }) {

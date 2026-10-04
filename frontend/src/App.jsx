@@ -7,6 +7,7 @@ import ImportPage from "./pages/ImportPage";
 import BatchWorkflow from "./pages/BatchWorkflow";
 import AiProviders from "./pages/AiProviders";
 import MailProviders from "./pages/MailProviders";
+import AdminSettings from "./pages/AdminSettings";
 import { ToastProvider } from "./components/Toast";
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
                 <Route path="/batches/:batchId" element={<BatchWorkflow />} />
                 <Route path="/settings/ai-providers" element={<AiProviders />} />
                 <Route path="/settings/mail-providers" element={<MailProviders />} />
+                <Route path="/settings/admin" element={<AdminSettings />} />
               </Routes>
             </div>
           </div>

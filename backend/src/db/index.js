@@ -20,6 +20,7 @@ async function connectDB() {
     db.collection("history").createIndex({ recordId: 1 }),
     db.collection("ai_provider_configs").createIndex({ providerId: 1 }, { unique: true }),
     db.collection("mail_provider_configs").createIndex({ providerId: 1 }, { unique: true }),
+    db.collection("admin_settings").createIndex({ id: 1 }, { unique: true }),
   ]);
 
   await seedTemplates();

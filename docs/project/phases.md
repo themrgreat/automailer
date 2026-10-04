@@ -150,7 +150,43 @@ Unknown/Needs Verification exact intent — there are uncommitted local edits to
 
 ---
 
-## Phase 6 — Hardening (Not Started)
+## Phase 6 — Admin Panel & Dynamic Configuration
+
+**Status**: Completed (uncommitted, this session)
+
+### Goal
+Move the AI-generation and email-sending retry/concurrency/rate limits that were hardcoded in
+route/service files into an Admin Panel backed by MongoDB, so limits can be tuned to match
+free-tier provider quotas without editing source code or restarting the backend.
+
+### Completed
+- `admin_settings` MongoDB collection (singleton doc) + `services/adminSettings.js`
+  (get/update/reset, validated, fail-open to the app's original hardcoded defaults) +
+  `routes/adminSettings.js` (`GET`/`PUT`/`DELETE /api/admin-settings`).
+- `routes/generate.js` / `routes/send.js`: hardcoded `CONCURRENCY = 2` replaced with a per-request
+  read from admin settings (`aiGeneration.concurrency` / `emailSending.concurrency`).
+- `services/ai/index.js`: hardcoded `MAX_RETRIES = 2` replaced with `aiGeneration.retryLimit`.
+- `services/mailer/index.js`: gained retry-with-backoff (`emailSending.retryLimit`, default 0 —
+  sending previously had no retry at all) and an emails-per-minute rate limit
+  (`utils/rateLimiter.js`, an in-process sliding-window limiter; default 0 = unlimited).
+- `frontend/src/pages/AdminSettings.jsx` at `/settings/admin`: two `.card` sections (AI Generation,
+  Email Sending) with number inputs, Save, and Reset-to-Defaults; reuses existing CSS/components,
+  no new stylesheet code. Nav link added to `Sidebar.jsx`; API calls added to `api.js`.
+
+### Remaining
+- None for the scoped requirement. Not yet committed to git.
+
+### Relevant Files
+`backend/src/services/adminSettings.js`, `backend/src/routes/adminSettings.js`,
+`backend/src/utils/rateLimiter.js`, `backend/src/services/ai/index.js`,
+`backend/src/services/mailer/index.js`, `backend/src/routes/generate.js`,
+`backend/src/routes/send.js`, `backend/src/db/index.js`, `backend/src/index.js`,
+`frontend/src/pages/AdminSettings.jsx`, `frontend/src/api.js`, `frontend/src/App.jsx`,
+`frontend/src/components/Sidebar.jsx`.
+
+---
+
+## Phase 7 — Hardening (Not Started)
 
 **Status**: Planned — inferred from Known Gaps in `PRD.md`, not from any explicit roadmap
 

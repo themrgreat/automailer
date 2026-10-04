@@ -2,7 +2,9 @@
 
 > Reflects the actual codebase, not an idealized design. Verified by reading every backend route/
 > service and every frontend page/component as of commit `20eca9a` plus uncommitted local edits to
-> `frontend/src/components/ProviderCard.jsx` and `frontend/src/index.css`.
+> `frontend/src/components/ProviderCard.jsx` and `frontend/src/index.css`, and (this session,
+> uncommitted) a new Admin Panel making AI-generation/email-sending retry, concurrency, and rate
+> limits dynamically configurable instead of hardcoded — see `services/adminSettings.js` below.
 
 ## Tech Stack
 
@@ -99,21 +101,29 @@ backend/
       send.js                         POST /api/send (bulk async), POST /api/send/:id (sync single)
       aiProviders.js                  AI provider settings CRUD/test/default
       mailProviders.js                 Mail provider settings CRUD/test/default
+      adminSettings.js                 GET/PUT/DELETE dynamic AI-generation/email-sending limits
     services/
       parser.js                    spreadsheet → {columns, rows}; guessEmailColumn()
       history.js                    addHistory() — audit log writer
+      adminSettings.js              getSettings()/updateSettings()/resetSettings() — admin_settings doc,
+                                       validated + fail-open to DEFAULTS, same spirit as decryptSafe()
       ai/
         index.js                     generateEmail(): provider resolution + retry-with-backoff
+                                        (retry count read from adminSettings, default 2)
         config.js                     DB-vs-env credential resolution; save/test/default/list logic
         registry.js                   provider ids/labels/fields/models/docsUrl declarations
         types.js                      buildPrompt(), parseModelJson(), httpError() — shared across providers
         gemini.js / grok.js / openai.js / claude.js   one class per provider (generateEmail + static testConnection)
       mailer/
-        index.js / config.js / registry.js   mirrors the ai/ structure exactly
+        index.js / config.js / registry.js   mirrors the ai/ structure, plus retry-with-backoff and
+                                                an emails/minute rate-limit gate (both admin-configurable,
+                                                default 0 = no retry / unlimited, i.e. prior behavior)
         zoho.js / gmail.js            one class per provider (sendEmail + static testConnection)
     utils/
       crypto.js                    AES-256-GCM encrypt/decrypt + hasEncryptionKey()
       concurrency.js                 runWithConcurrency(items, limit, worker) — small worker pool
+      rateLimiter.js                 waitForSendSlot(limitPerMinute) — in-process sliding-window
+                                        limiter (module-level timestamp array); 0/falsy = unlimited
       asyncHandler.js                 wraps async route handlers so rejections reach Express's error middleware
 frontend/
   src/
@@ -125,6 +135,8 @@ frontend/
       ImportPage.jsx                drag-drop/browse upload → navigates to new batch
       BatchWorkflow.jsx             stepper container: preview → template → generate → review; polls while in-flight
       AiProviders.jsx / MailProviders.jsx   settings pages, thin wrappers around ProviderCard
+      AdminSettings.jsx             AI-generation/email-sending retry/concurrency/rate-limit form,
+                                       Save + Reset-to-Defaults, no new CSS (reuses .card/.field/.btn)
     components/
       Stepper.jsx                   4-step progress pills with "furthest reached" high-water-mark
       PreviewStep.jsx                 column table, email-column picker, missing-email count
@@ -196,6 +208,7 @@ No payment system, analytics, or third-party storage/CDN integration exists.
   | `history` | append-only per-record audit log | `id`, `recordId`, `type`, `detail`, `createdAt` | non-unique `recordId` |
   | `ai_provider_configs` | one doc per AI provider id | `providerId`, `credentials{}` (encrypted), `model`, `enabled`, `isDefault`, `lastTestedAt/Ok/Error` | unique `providerId` |
   | `mail_provider_configs` | one doc per mail provider id | same shape as above, mail-specific fields | unique `providerId` |
+  | `admin_settings` | single settings doc | fixed `id: "global"` (singleton, not a `nanoid()` — see Architecture Decisions), `aiGeneration{retryLimit,concurrency}`, `emailSending{emailsPerMinute,concurrency,retryLimit}` | unique `id` |
 - **Relationships**: purely reference-by-string-id, no Mongo-native relations/joins/`$lookup`
   observed — `records.batchId` references `batches.id`; `history.recordId` references `records.id`.
   Both are manually cleaned up on delete (`routes/batches.js` `DELETE`, `routes/records.js` `DELETE`).
@@ -230,3 +243,17 @@ Decisions clearly evident from the code (not assumed):
 - **No authentication layer** — architecture assumes a single trusted operator / private network;
   this is a boundary any future architecture change (e.g. multi-user support) would need to address
   explicitly, not something to casually bolt on.
+- **AI-generation/email-sending retry, concurrency, and rate limits moved from hardcoded constants
+  to a DB-backed `admin_settings` singleton document** (Admin Panel UI at `/settings/admin`),
+  because the operator runs on free-tier provider quotas that change independently of the code.
+  Reads are fail-open to `DEFAULTS` (`services/adminSettings.js`) — a missing/corrupt/out-of-range
+  field never breaks generation/sending, matching `decryptSafe()`'s existing fail-open convention.
+  `admin_settings` uses a fixed string id (`"global"`) rather than `nanoid()` because it's a true
+  singleton (one document, ever), not a repeated entity like `batches`/`records`/`templates` — the
+  `nanoid()` convention in `rules.md` is about generated ids for many documents of the same kind.
+- **Email sending gained its own retry-with-backoff and an emails/minute rate limiter**
+  (`utils/rateLimiter.js`), neither of which existed before — both default to "off" (0 = no
+  retry / unlimited) so a fresh install with no `admin_settings` doc behaves exactly as before this
+  change. The rate limiter is a single in-process sliding-window timestamp array (no Redis/queue),
+  appropriate for this app's single-process, single-operator scale, matching how
+  `runWithConcurrency` itself has no external dependency.

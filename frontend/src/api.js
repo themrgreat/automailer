@@ -137,6 +137,21 @@ export async function testMailProvider(id, fields) {
   return data;
 }
 
+export async function getAdminSettings() {
+  const { data } = await api.get("/admin-settings");
+  return data;
+}
+
+export async function updateAdminSettings(input) {
+  const { data } = await api.put("/admin-settings", input);
+  return data;
+}
+
+export async function resetAdminSettings() {
+  const { data } = await api.delete("/admin-settings");
+  return data;
+}
+
 export function apiErrorMessage(err) {
   if (axios.isAxiosError(err)) {
     return err.response?.data?.error || err.message;

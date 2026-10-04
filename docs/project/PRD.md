@@ -65,6 +65,14 @@ pipeline so each recipient gets a distinct, context-aware email without the user
 - Template CRUD API exists (`routes/templates.js`) though the frontend currently only supports
   selecting an existing template or creating one inline during generation — a separate
   "manage templates" screen/list-edit-delete UI is **Not Found** in the frontend.
+- **Admin Panel** (`/settings/admin`): AI-generation retry limit + concurrency, and email-sending
+  emails/minute rate limit + concurrency + retry limit, all editable at runtime and persisted in
+  MongoDB (`admin_settings` collection) — no source-code edits or restarts needed when a free-tier
+  provider's limits change. Includes input validation (whole numbers, bounded ranges) and a
+  Reset-to-Defaults action. Missing/invalid stored values fail open to the app's original hardcoded
+  behavior (retry 2 / concurrency 2 for AI; unlimited rate / concurrency 2 / no retry for email) —
+  `backend/src/services/adminSettings.js`, `routes/adminSettings.js`,
+  `frontend/src/pages/AdminSettings.jsx`.
 
 ### In Progress
 - Provider settings card UI polish — `frontend/src/components/ProviderCard.jsx` and
@@ -138,17 +146,24 @@ backend.
 - The system must record an audit trail entry for every generate/regenerate/manual-edit/send action
   on a record.
 - Bulk generation and bulk sending must not be fully sequential nor fully unbounded — both use a
-  concurrency cap of 2 (`backend/src/utils/concurrency.js`).
+  concurrency cap (`backend/src/utils/concurrency.js`), admin-configurable via the Admin Panel
+  (defaults to 2, matching the app's original hardcoded value).
+- Bulk email sending must additionally respect an admin-configurable emails-per-minute rate limit
+  (default: unlimited, i.e. no change from before the Admin Panel existed) — see
+  `backend/src/utils/rateLimiter.js`.
 - Sending a single record must be synchronous (so the UI can show an immediate per-record result);
   bulk operations must be asynchronous with client-side polling for progress.
 
 ## Non-Functional Requirements
 
-- **Performance**: Bulk AI generation and bulk sending are throttled to a concurrency of 2 to avoid
-  provider rate limits; the AI layer retries transient failures (HTTP 429/503) with a backoff,
-  honoring a provider-supplied `retryAfterMs` when available. No caching layer, queue, or job
-  persistence beyond MongoDB record status exists — a server restart mid-batch leaves records
-  stuck in `generating`/`sending` with no automatic resume (Needs Verification / known gap).
+- **Performance**: Bulk AI generation and bulk sending are throttled to an admin-configurable
+  concurrency (default 2) to avoid provider rate limits; the AI layer retries transient failures
+  (HTTP 429/503) with a backoff, honoring a provider-supplied `retryAfterMs` when available, up to
+  an admin-configurable retry limit (default 2). Email sending now also retries on failure (default
+  0 = no retry, matching prior behavior) and can be capped to an emails-per-minute rate via the
+  Admin Panel (default unlimited). No caching layer, queue, or job persistence beyond MongoDB
+  record status exists — a server restart mid-batch leaves records stuck in
+  `generating`/`sending` with no automatic resume (Needs Verification / known gap).
 - **Security**: Provider credentials are AES-256-GCM encrypted at rest (`SETTINGS_ENCRYPTION_KEY`);
   masked previews only are ever returned to the frontend, never raw stored secrets. However, there
   is **no authentication or authorization** on any API route — anyone who can reach the backend
@@ -183,6 +198,8 @@ backend.
   for bulk outbound email.
 - **No rate-limiting/throttling at the HTTP layer** (e.g., no protection against another local
   process hammering `/api/generate` or `/api/send` repeatedly) beyond the internal concurrency cap.
+  (Distinct from the Admin Panel's emails-per-minute limit, which throttles outbound sends to the
+  mail provider, not inbound calls to this app's own API.)
 - Frontend has uncommitted local changes to `ProviderCard.jsx` and `index.css` at time of writing —
   treat as in-progress/unverified until committed.
 - The `SETTINGS_ENCRYPTION_KEY` rotation story is minimal: if the key changes or is lost, previously
